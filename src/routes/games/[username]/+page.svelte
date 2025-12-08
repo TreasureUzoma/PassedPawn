@@ -34,25 +34,6 @@
 		archives: string[];
 	}
 
-	async function fetchRecentGames(username: string): Promise<Game[]> {
-		const archiveRes = await fetch(`https://api.chess.com/pub/player/${username}/games/archives`);
-		if (!archiveRes.ok) throw new Error('Failed to fetch archives');
-		const archiveData: ArchiveResponse = await archiveRes.json();
-
-		const last3Archives = archiveData.archives.slice(-3);
-
-		const gamePromises = last3Archives.map(async (url) => {
-			const gameRes = await fetch(url);
-			if (!gameRes.ok) throw new Error(`Failed to fetch games from: ${url}`);
-			const gameData = await gameRes.json();
-			return gameData.games || [];
-		});
-
-		const gamesArrays = await Promise.all(gamePromises);
-
-		return gamesArrays.flat().reverse();
-	}
-
 	const profileQuery = createQuery(() => ({
 		queryKey: ['player', data.username],
 		queryFn: async () => {
@@ -62,30 +43,51 @@
 		}
 	}));
 
-	const combinedGamesQuery = createQuery(() => ({
-		queryKey: ['recentGames', data.username],
-		queryFn: () => fetchRecentGames(data.username)
+	const archivesQuery = createQuery(() => ({
+		queryKey: ['archives', data.username],
+		queryFn: async () => {
+			const res = await fetch(`https://api.chess.com/pub/player/${data.username}/games/archives`);
+			if (!res.ok) throw new Error('Failed to fetch archives index');
+			const archiveData: ArchiveResponse = await res.json();
+			return archiveData.archives.reverse();
+		}
 	}));
 
-	const allGames = $derived(combinedGamesQuery.data || []);
+	const allGamesQuery = createQuery(() => ({
+		queryKey: ['allGames', data.username],
+		enabled: !!archivesQuery.data,
+		queryFn: async () => {
+			const urls = archivesQuery.data!;
+			const results = await Promise.all(
+				urls.map(async (url) => {
+					const res = await fetch(url);
+					if (!res.ok) return [];
+					const json = await res.json();
+					return json.games || [];
+				})
+			);
+			return results.flat() as Game[];
+		}
+	}));
 
 	function getResult(game: Game) {
-		const whiteRes = game.white.result;
-		const blackRes = game.black.result;
+		const w = game.white.result;
+		const b = game.black.result;
 
-		if (whiteRes === 'win') return 'White Won';
-		if (blackRes === 'win') return 'Black Won';
-		if (whiteRes === 'agreed' || blackRes === 'agreed') return 'Draw';
-		if (whiteRes === 'repetition' || blackRes === 'repetition') return 'Draw';
-		if (whiteRes === 'stalemate' || blackRes === 'stalemate') return 'Draw';
-		if (whiteRes === 'lucena' || blackRes === 'lucena') return 'Adjudicated';
+		if (w === 'win') return `${game.white.username} (White) Won`;
+		if (b === 'win') return `${game.black.username} (Black) Won`;
+		if (w === 'agreed' || b === 'agreed') return 'Draw';
+		if (w === 'repetition' || b === 'repetition') return 'Draw';
+		if (w === 'stalemate' || b === 'stalemate') return 'Draw';
+		if (w === 'lucena' || b === 'lucena') return 'Adjudicated';
+
 		return 'Draw';
 	}
 
 	function getGameDate(game: Game) {
-		const timestamp = game.end_time || game.last_activity;
-		if (!timestamp) return 'Unknown Date';
-		return new Date(timestamp * 1000).toLocaleDateString();
+		const ts = game.end_time || game.last_activity;
+		if (!ts) return 'Unknown Date';
+		return new Date(ts * 1000).toLocaleDateString();
 	}
 </script>
 
@@ -106,19 +108,15 @@
 				class="h-20 w-20 rounded object-cover shadow-md"
 			/>
 			<div>
-				<h1 class="text-3xl font-bold tracking-tight">{profileQuery.data.username}</h1>
+				<h1 class="text-3xl font-bold">{profileQuery.data.username}</h1>
 				<div class="mt-1 flex gap-2 text-muted-foreground">
 					<span
 						>{profileQuery.data.name || profileQuery.data.username} • {profileQuery.data.followers} followers</span
 					>
 					{#if profileQuery.data.country}
-						<a
-							href={profileQuery.data.country}
-							target="_blank"
-							class="text-primary hover:underline"
+						<a href={profileQuery.data.country} target="_blank" class="text-primary hover:underline"
+							>{profileQuery.data.country.slice(-2)}</a
 						>
-							Country
-						</a>
 					{/if}
 				</div>
 			</div>
@@ -126,21 +124,24 @@
 	{/if}
 
 	<div class="space-y-4">
-		<h2 class="text-2xl font-semibold">Recent Games ({allGames.length})</h2>
+		<h2 class="text-2xl font-semibold">
+			Recent Games ({allGamesQuery.data?.length || 0} / {(archivesQuery.data?.length ?? 0) * 50 ||
+				'...'})
+		</h2>
 
-		{#if combinedGamesQuery.isPending}
+		{#if archivesQuery.isPending || allGamesQuery.isPending}
 			<div class="space-y-4">
-				{#each Array(3) as _}
+				{#each Array(6) as _}
 					<div class="h-24 animate-pulse rounded-lg border bg-card"></div>
 				{/each}
 			</div>
-		{:else if combinedGamesQuery.isError}
+		{:else if archivesQuery.isError || allGamesQuery.isError}
 			<p class="py-8 text-center text-destructive-foreground bg-destructive rounded-lg p-4">
-				Error loading games. Please check the console for details.
+				Error loading archives or games.
 			</p>
 		{:else}
 			<div class="grid gap-3">
-				{#each allGames as game}
+				{#each allGamesQuery.data as game}
 					<a
 						href="/games/pgn?pgn={encodeURIComponent(game.pgn)}"
 						class="group block rounded-lg border bg-card p-4 transition-all hover:border-primary hover:shadow-md"
@@ -148,10 +149,10 @@
 						<div class="flex items-center justify-between">
 							<div class="flex flex-col gap-1">
 								<span class="font-medium">
-									{game.white.username} ({game.white.rating}) vs {game.black.username} ({game.black
-										.rating})
+									{game.white.username} ({game.white.rating}) vs
+									{game.black.username} ({game.black.rating})
 								</span>
-								<span class="text-sm capitalize text-muted-foreground">
+								<span class="text-sm text-muted-foreground capitalize">
 									{game.time_class} • {game.rules} • {getGameDate(game)}
 								</span>
 							</div>
@@ -161,7 +162,8 @@
 						</div>
 					</a>
 				{/each}
-				{#if allGames.length === 0}
+
+				{#if allGamesQuery.data?.length === 0}
 					<p class="py-8 text-center text-muted-foreground">No recent games found.</p>
 				{/if}
 			</div>

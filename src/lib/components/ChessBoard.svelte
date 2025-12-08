@@ -404,7 +404,7 @@
 									<Icon
 										name={getPieceName(piece.type)}
 										color={piece.color}
-										size="100%"
+										size="107%"
 										class="drop-shadow-lg filter"
 									/>
 								</div>
@@ -431,7 +431,7 @@
 								{:else}
 									<!-- Soft Dot -->
 									<div
-										class="absolute h-3.5 w-3.5 rounded-full bg-black/15 pointer-events-none"
+										class="absolute h-3.5 w-3.5 md:h-4 md:w-4 rounded-full bg-black/15 pointer-events-none"
 									></div>
 								{/if}
 							{/if}
