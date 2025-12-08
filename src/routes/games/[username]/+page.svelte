@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { createQuery, createQueries } from '@tanstack/svelte-query';
-	import api from '$lib/utils/axios-client';
+	import { createQuery } from '@tanstack/svelte-query';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -11,10 +10,6 @@
 		name?: string;
 		followers: number;
 		country?: string;
-	}
-
-	interface ArchiveResponse {
-		archives: string[];
 	}
 
 	interface GamePlayer {
@@ -35,53 +30,44 @@
 		url: string;
 	}
 
-	interface GameResponse {
-		games: Game[];
+	interface ArchiveResponse {
+		archives: string[];
 	}
 
-	// 1. Fetch Profile
+	async function fetchRecentGames(username: string): Promise<Game[]> {
+		const archiveRes = await fetch(`https://api.chess.com/pub/player/${username}/games/archives`);
+		if (!archiveRes.ok) throw new Error('Failed to fetch archives');
+		const archiveData: ArchiveResponse = await archiveRes.json();
+
+		const last3Archives = archiveData.archives.slice(-3);
+
+		const gamePromises = last3Archives.map(async (url) => {
+			const gameRes = await fetch(url);
+			if (!gameRes.ok) throw new Error(`Failed to fetch games from: ${url}`);
+			const gameData = await gameRes.json();
+			return gameData.games || [];
+		});
+
+		const gamesArrays = await Promise.all(gamePromises);
+
+		return gamesArrays.flat().reverse();
+	}
+
 	const profileQuery = createQuery(() => ({
 		queryKey: ['player', data.username],
 		queryFn: async () => {
-			const res = await api.get<PlayerProfile>(`https://api.chess.com/pub/player/${data.username}`);
-			// @ts-ignore - The interceptor returns data directly
-			return res as PlayerProfile;
+			const res = await fetch(`https://api.chess.com/pub/player/${data.username}`);
+			if (!res.ok) throw new Error('Failed to fetch profile');
+			return res.json() as Promise<PlayerProfile>;
 		}
 	}));
 
-	// 2. Fetch Archives
-	const archivesQuery = createQuery(() => ({
-		queryKey: ['archives', data.username],
-		queryFn: async () => {
-			const res = await api.get<ArchiveResponse>(
-				`https://api.chess.com/pub/player/${data.username}/games/archives`
-			);
-			// @ts-ignore - The interceptor returns data directly
-			return res as ArchiveResponse;
-		}
+	const combinedGamesQuery = createQuery(() => ({
+		queryKey: ['recentGames', data.username],
+		queryFn: () => fetchRecentGames(data.username)
 	}));
 
-	// 3. Derive Last 3 Months
-	const last3Archives = $derived(
-		archivesQuery.data?.archives ? archivesQuery.data.archives.slice(-3).reverse() : []
-	);
-
-	// 4. Fetch Games for those months
-	const gamesQueries = createQueries(() => ({
-		queries: last3Archives.map((url: string) => ({
-			queryKey: ['games', url],
-			queryFn: async () => {
-				const res = await api.get<GameResponse>(url);
-				// @ts-ignore - The interceptor returns data directly
-				return res as GameResponse;
-			}
-		}))
-	}));
-
-	// Combine games from all queries
-	const allGames = $derived(
-		gamesQueries.flatMap((q) => (q.data?.games ? q.data.games.reverse() : []))
-	);
+	const allGames = $derived(combinedGamesQuery.data || []);
 
 	function getResult(game: Game) {
 		const whiteRes = game.white.result;
@@ -92,8 +78,8 @@
 		if (whiteRes === 'agreed' || blackRes === 'agreed') return 'Draw';
 		if (whiteRes === 'repetition' || blackRes === 'repetition') return 'Draw';
 		if (whiteRes === 'stalemate' || blackRes === 'stalemate') return 'Draw';
-		if (whiteRes === 'lucena' || blackRes === 'lucena') return 'Adjudicated'; // rare
-		return 'Draw'; // Default fallback
+		if (whiteRes === 'lucena' || blackRes === 'lucena') return 'Adjudicated';
+		return 'Draw';
 	}
 
 	function getGameDate(game: Game) {
@@ -104,7 +90,6 @@
 </script>
 
 <div class="container mx-auto max-w-4xl space-y-8 p-4">
-	<!-- Profile Header -->
 	{#if profileQuery.isPending}
 		<div class="flex animate-pulse items-center gap-4">
 			<div class="h-20 w-20 rounded bg-muted"></div>
@@ -140,16 +125,19 @@
 		</div>
 	{/if}
 
-	<!-- Games List -->
 	<div class="space-y-4">
 		<h2 class="text-2xl font-semibold">Recent Games ({allGames.length})</h2>
 
-		{#if archivesQuery.isPending || (last3Archives.length > 0 && gamesQueries[0]?.isPending)}
+		{#if combinedGamesQuery.isPending}
 			<div class="space-y-4">
 				{#each Array(3) as _}
 					<div class="h-24 animate-pulse rounded-lg border bg-card"></div>
 				{/each}
 			</div>
+		{:else if combinedGamesQuery.isError}
+			<p class="py-8 text-center text-destructive-foreground bg-destructive rounded-lg p-4">
+				Error loading games. Please check the console for details.
+			</p>
 		{:else}
 			<div class="grid gap-3">
 				{#each allGames as game}
