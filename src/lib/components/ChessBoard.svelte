@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { Trophy } from 'lucide-svelte';
 	import { Chess } from 'chess.js';
 	import type { Square, Move } from 'chess.js';
@@ -8,6 +8,10 @@
 
 	export let fen: string = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 	export let orientation: 'white' | 'black' = 'white';
+
+	const dispatch = createEventDispatcher<{
+		move: { from: Square; to: Square; promotion?: string };
+	}>();
 
 	let chess = new Chess(fen);
 	let board = chess.board();
@@ -263,22 +267,14 @@
 	}
 
 	function makeMove(from: Square, to: Square) {
-		try {
-			const move = chess.move({
-				from,
-				to,
-				promotion: 'q'
-			});
+		// Dispatch the move event to the parent component.
+		// The parent will handle the game logic and pawn promotion.
+		dispatch('move', { from, to });
 
-			if (move) {
-				fen = chess.fen();
-				updateGameState();
-				selectedSquare = null;
-				possibleMoves = [];
-			}
-		} catch (err) {
-			// Invalid move
-		}
+		// Clear local UI state after attempting a move.
+		selectedSquare = null;
+		possibleMoves = [];
+
 		stopDragOnly();
 	}
 
