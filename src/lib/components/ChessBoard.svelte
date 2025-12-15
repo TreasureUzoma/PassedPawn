@@ -23,7 +23,6 @@
 	let kingSquare: Square | null = null;
 	let evaluation = 0;
 
-	// Sync logic
 	$: {
 		if (fen !== chess.fen()) {
 			try {
@@ -35,19 +34,16 @@
 		}
 	}
 
-	// Stockfish Evaluation
 	let stockfish: Worker | null = null;
 
 	onMount(() => {
 		updateGameState();
 
-		// Initialize Stockfish
 		try {
 			stockfish = new Worker('/stockfish.js');
 
 			stockfish.onmessage = (event) => {
 				const line = event.data;
-				// console.log('SF:', line); // Debug
 				if (
 					typeof line === 'string' &&
 					line.startsWith('info') &&
