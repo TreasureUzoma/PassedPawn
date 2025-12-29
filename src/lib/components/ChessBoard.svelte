@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { Trophy } from 'lucide-svelte';
+	import {Handshake} from 'lucide-svelte';
 	import { Chess } from 'chess.js';
 	import type { Square, Move } from 'chess.js';
 	import Icon from './Icons.svelte';
@@ -460,6 +461,7 @@
 					<div
 						class="flex flex-col items-center gap-2 p-6 rounded-xl bg-card border border-border shadow-2xl text-center"
 					>
+					<Handshake class="w-16 h-16 text-yellow-500 mb-1" strokeWidth={1.5} />
 						<h2 class="text-3xl font-black text-foreground tracking-tight">Draw!</h2>
 						<p class="text-lg font-medium text-muted-foreground">The game is a draw.</p>
 					</div>
