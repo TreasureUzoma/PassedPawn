@@ -15,8 +15,8 @@
 
 	let chess = new Chess(fen);
 	let board = chess.board();
-
 	let isCheckmate = false;
+	let isDraw = false;
 	let isCheck = false;
 	let turn = 'w';
 	let winner: 'White' | 'Black' | null = null;
@@ -114,6 +114,7 @@
 		capturedPieces = getCapturedPieces();
 		isCheckmate = chess.isCheckmate();
 		isCheck = chess.inCheck();
+		isDraw = chess.isDraw();
 		turn = chess.turn(); // 'w' or 'b'
 
 		// Find King of current turn if in check
@@ -447,6 +448,20 @@
 								>{winner}</span
 							> wins
 						</p>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Draw Overlay -->
+			{#if isDraw}
+				<div
+					class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-500"
+				>
+					<div
+						class="flex flex-col items-center gap-2 p-6 rounded-xl bg-card border border-border shadow-2xl text-center"
+					>
+						<h2 class="text-3xl font-black text-foreground tracking-tight">Draw!</h2>
+						<p class="text-lg font-medium text-muted-foreground">The game is a draw.</p>
 					</div>
 				</div>
 			{/if}
