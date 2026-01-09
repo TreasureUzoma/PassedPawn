@@ -78,10 +78,14 @@
 	<!-- Pawn Promotion Modal -->
 	{#if showPromotionDialog}
 		<div
+			role="button"
+			tabindex="-1"
 			class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
 			on:click={() => (showPromotionDialog = false)}
+			on:keydown={(e) => e.key === 'Escape' && (showPromotionDialog = false)}
 		>
 			<div
+				role="presentation"
 				class="flex gap-2 rounded-lg border border-border bg-card p-4 shadow-2xl"
 				on:click|stopPropagation
 			>

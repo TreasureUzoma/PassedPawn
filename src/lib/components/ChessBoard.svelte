@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { Trophy } from 'lucide-svelte';
-	import {Handshake} from 'lucide-svelte';
+	import { Handshake } from 'lucide-svelte';
 	import { Chess } from 'chess.js';
 	import type { Square, Move } from 'chess.js';
 	import Icon from './Icons.svelte';
@@ -12,6 +12,7 @@
 
 	const dispatch = createEventDispatcher<{
 		move: { from: Square; to: Square; promotion?: string };
+		engine: { evaluation: number; bestMove: string; pv: string[] };
 	}>();
 
 	let chess = new Chess(fen);
@@ -45,34 +46,40 @@
 
 			stockfish.onmessage = (event) => {
 				const line = event.data;
-				if (
-					typeof line === 'string' &&
-					line.startsWith('info') &&
-					(line.includes('score cp') || line.includes('score mate'))
-				) {
+				if (typeof line !== 'string') return;
+
+				if (line.startsWith('bestmove')) {
+					const match = line.match(/bestmove\s+(\S+)/);
+					if (match) {
+						dispatch('engine', { evaluation, bestMove: match[1], pv: [] });
+					}
+				}
+
+				if (line.startsWith('info') && (line.includes('score cp') || line.includes('score mate'))) {
 					const scoreCpMatch = line.match(/score cp (-?\d+)/);
 					const scoreMateMatch = line.match(/score mate (-?\d+)/);
+					const pvMatch = line.match(/pv\s+(.*)/);
+
+					let currentEval = evaluation;
+					let currentPv: string[] = [];
 
 					if (scoreCpMatch) {
 						let cp = parseInt(scoreCpMatch[1], 10);
-						// Stockfish score is from side-to-move perspective
-						if (turn === 'b') {
-							cp = -cp;
-						}
-						evaluation = cp / 100;
+						if (turn === 'b') cp = -cp;
+						currentEval = cp / 100;
 					} else if (scoreMateMatch) {
 						const mateIn = parseInt(scoreMateMatch[1], 10);
-						// Mate score: + for white winning, - for black winning (if parsed correctly with turn)
-						// Actually SF mate score is also side-to-move.
-						// If turn is black and score is mate 1, that means Black mates in 1. (Score -Infinity for White)
-						// If turn is white and score is mate 1, White mates in 1. (Score +Infinity)
 						let mateScore = mateIn;
-						if (turn === 'b') {
-							mateScore = -mateScore;
-						}
-
-						evaluation = mateScore > 0 ? Infinity : -Infinity;
+						if (turn === 'b') mateScore = -mateScore;
+						currentEval = mateScore > 0 ? Infinity : -Infinity;
 					}
+
+					if (pvMatch) {
+						currentPv = pvMatch[1].split(' ').slice(0, 5);
+					}
+
+					evaluation = currentEval;
+					dispatch('engine', { evaluation, bestMove: '', pv: currentPv });
 				}
 			};
 
@@ -321,6 +328,19 @@
 		}
 		return score;
 	}
+
+	function getSquareCoords(square: string) {
+		const file = square.charCodeAt(0) - 97; // a-h
+		const rank = 8 - parseInt(square[1]); // 1-8
+
+		const actualFile = orientation === 'white' ? file : 7 - file;
+		const actualRank = orientation === 'white' ? rank : 7 - rank;
+
+		return {
+			x: actualFile + 0.5,
+			y: actualRank + 0.5
+		};
+	}
 </script>
 
 <div class="flex gap-4 items-stretch justify-center w-full max-w-3xl flex-col sm:flex-row">
@@ -461,7 +481,7 @@
 					<div
 						class="flex flex-col items-center gap-2 p-6 rounded-xl bg-card border border-border shadow-2xl text-center"
 					>
-					<Handshake class="w-16 h-16 text-yellow-500 mb-1" strokeWidth={1.5} />
+						<Handshake class="w-16 h-16 text-yellow-500 mb-1" strokeWidth={1.5} />
 						<h2 class="text-3xl font-black text-foreground tracking-tight">Draw!</h2>
 						<p class="text-lg font-medium text-muted-foreground">The game is a draw.</p>
 					</div>
