@@ -343,13 +343,15 @@
 	}
 </script>
 
-<div class="flex gap-4 items-stretch justify-center w-full max-w-3xl flex-col sm:flex-row">
+<div
+	class="flex gap-2 sm:gap-4 items-stretch justify-center w-full max-w-full sm:max-w-3xl flex-col sm:flex-row"
+>
 	<!-- Eval Bar (Desktop) -->
 	<div class="h-auto w-8 py-8 hidden sm:block">
 		<EvalBar {evaluation} orientation="vertical" />
 	</div>
 
-	<div class="flex flex-col gap-4 w-full max-w-2xl">
+	<div class="flex flex-col gap-2 sm:gap-4 w-full max-w-full sm:max-w-2xl">
 		<!-- Eval Bar (Mobile) -->
 		<div class="w-full h-6 block sm:hidden">
 			<EvalBar {evaluation} orientation="horizontal" />
@@ -394,7 +396,7 @@
                             {isKingInDanger ? 'ring-inset ring-4 ring-red-500 bg-red-400/50' : ''}
                             "
 							data-square={square}
-							on:mousedown={(e) => handleMouseDown(e, row, col, piece)}
+							onmousedown={(e) => handleMouseDown(e, row, col, piece)}
 						>
 							<!-- Coordinate labels -->
 							{#if col === (orientation === 'white' ? 0 : 7)}
@@ -456,8 +458,14 @@
 
 			<!-- Checkmate Overlay -->
 			{#if isCheckmate && winner}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<div
-					class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-500"
+					class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-500 cursor-pointer"
+					onclick={() => {
+						isCheckmate = false;
+						winner = null;
+					}}
 				>
 					<div
 						class="flex flex-col items-center gap-2 p-6 rounded-xl bg-card border border-border shadow-2xl text-center"
@@ -469,14 +477,20 @@
 								>{winner}</span
 							> wins
 						</p>
+						<p class="text-xs text-muted-foreground mt-2">Click to dismiss</p>
 					</div>
 				</div>
 			{/if}
 
 			<!-- Draw Overlay -->
 			{#if isDraw}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<div
-					class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-500"
+					class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-500 cursor-pointer"
+					onclick={() => {
+						isDraw = false;
+					}}
 				>
 					<div
 						class="flex flex-col items-center gap-2 p-6 rounded-xl bg-card border border-border shadow-2xl text-center"
@@ -484,6 +498,7 @@
 						<Handshake class="w-16 h-16 text-yellow-500 mb-1" strokeWidth={1.5} />
 						<h2 class="text-3xl font-black text-foreground tracking-tight">Draw!</h2>
 						<p class="text-lg font-medium text-muted-foreground">The game is a draw.</p>
+						<p class="text-xs text-muted-foreground mt-2">Click to dismiss</p>
 					</div>
 				</div>
 			{/if}

@@ -185,12 +185,18 @@
 			</div>
 		{:else}
 			<div class="grid gap-3">
-				{#each (allGamesQuery.data ?? []).slice().reverse().slice(0, 50) as game}
+				{#each (allGamesQuery.data ?? [])
+					.sort((a, b) => {
+						const timeA = a.end_time || a.last_activity || 0;
+						const timeB = b.end_time || b.last_activity || 0;
+						return timeB - timeA;
+					})
+					.slice(0, 50) as game}
 					{@const result = getGameResult(game)}
 					{@const TypeIcon = getGameTypeIcon(game.time_class)}
 					<a
 						href="/games/pgn?pgn={encodeURIComponent(game.pgn)}"
-						class="group relative flex items-center gap-4 rounded-xl border bg-card p-3 sm:p-4 transition-all hover:border-primary hover:shadow-lg active:scale-[0.98]"
+						class="group relative flex items-center gap-3 sm:gap-4 rounded-xl border bg-card p-3 sm:p-4 transition-all hover:border-primary hover:shadow-lg active:scale-[0.98]"
 					>
 						<!-- Left: Game Type Icon -->
 						<div
@@ -201,14 +207,14 @@
 
 						<!-- Center: Players -->
 						<div class="flex-1 min-w-0">
-							<div class="flex flex-col">
-								<div class="flex items-center gap-1.5 text-sm sm:text-base font-bold truncate">
-									<span>{game.white.username}</span>
-									<span class="text-[10px] opacity-40 font-mono">VS</span>
-									<span>{game.black.username}</span>
+							<div class="flex flex-col gap-0.5">
+								<div class="flex items-center gap-1.5 text-sm sm:text-base font-bold min-w-0">
+									<span class="truncate">{game.white.username}</span>
+									<span class="text-[10px] opacity-40 font-mono shrink-0">VS</span>
+									<span class="truncate">{game.black.username}</span>
 								</div>
 								<div
-									class="mt-0.5 flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider"
+									class="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider"
 								>
 									<span>{game.time_class}</span>
 									<span class="opacity-30">•</span>

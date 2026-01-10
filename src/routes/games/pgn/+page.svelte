@@ -17,7 +17,8 @@
 		Star,
 		Ghost,
 		Play,
-		Trash2
+		Trash2,
+		BookOpen
 	} from 'lucide-svelte';
 
 	const pgn = page.url.searchParams.get('pgn') || '';
@@ -27,6 +28,8 @@
 	let fens: string[] = [];
 	let currentIndex = 0;
 	let orientation: 'white' | 'black' = 'white';
+	let whiteName = 'White';
+	let blackName = 'Black';
 
 	// Analysis & Sandbox State
 	let engineInfo = { evaluation: 0, bestMove: '', pv: [] as string[] };
@@ -50,6 +53,12 @@
 			history = moves;
 			currentIndex = fens.length - 1;
 			moveRatings = new Array(fens.length).fill(null);
+
+			// Extract player names from PGN
+			const whiteMatch = pgn.match(/\[White\s+"([^"]+)"\]/);
+			const blackMatch = pgn.match(/\[Black\s+"([^"]+)"\]/);
+			if (whiteMatch) whiteName = whiteMatch[1];
+			if (blackMatch) blackName = blackMatch[1];
 		} catch (e) {
 			console.error('Failed to parse PGN', e);
 		}
@@ -105,30 +114,28 @@
 	}
 
 	function calculateMoveRating(index: number, currentEval: number) {
-		// Mock logic: randomly assign ratings for better UI demo
-		const ratings = [
-			'Brilliant',
-			'Great',
-			'Best',
-			'Excellent',
-			'Good',
-			'Inaccuracy',
-			'Mistake',
-			'Blunder'
-		];
-		if (!moveRatings[index]) {
-			// We only rate it once for demo purposes
-			// A real implementation would compare with previous position's eval
+		if (moveRatings[index]) return;
+
+		// Book moves happen in the opening
+		// First 10 plies (5 full moves) are almost always book
+		if (index <= 10) {
 			const rand = Math.random();
-			if (rand > 0.95) moveRatings[index] = 'Brilliant';
-			else if (rand > 0.85) moveRatings[index] = 'Great';
-			else if (rand > 0.7) moveRatings[index] = 'Best';
-			else if (rand > 0.5) moveRatings[index] = 'Excellent';
-			else if (rand > 0.3) moveRatings[index] = 'Good';
-			else if (rand > 0.15) moveRatings[index] = 'Inaccuracy';
-			else if (rand > 0.05) moveRatings[index] = 'Mistake';
-			else moveRatings[index] = 'Blunder';
+			if (rand > 0.1) {
+				moveRatings[index] = 'Book';
+				return;
+			}
 		}
+
+		// Mock logic: randomly assign ratings
+		const rand = Math.random();
+		if (rand > 0.99) moveRatings[index] = 'Brilliant';
+		else if (rand > 0.94) moveRatings[index] = 'Great';
+		else if (rand > 0.75) moveRatings[index] = 'Best';
+		else if (rand > 0.6) moveRatings[index] = 'Excellent';
+		else if (rand > 0.45) moveRatings[index] = 'Good';
+		else if (rand > 0.3) moveRatings[index] = 'Inaccuracy';
+		else if (rand > 0.15) moveRatings[index] = 'Mistake';
+		else moveRatings[index] = 'Blunder';
 	}
 
 	function enterSandbox() {
@@ -181,6 +188,8 @@
 				return { icon: AlertCircle, color: 'text-orange-500' };
 			case 'Blunder':
 				return { icon: AlertCircle, color: 'text-red-500' };
+			case 'Book':
+				return { icon: BookOpen, color: 'text-neutral-400' };
 			default:
 				return null;
 		}
@@ -203,16 +212,39 @@
 		</div>
 
 		<!-- 2. Board Container (Maximized) -->
-		<div class="flex-1 flex flex-col justify-center items-center overflow-hidden min-w-0">
-			<div
-				class="relative w-full max-w-[min(100%,92vh)] aspect-square shadow-2xl rounded-sm overflow-hidden border border-neutral-800"
-			>
+		<div
+			class="flex-1 flex flex-col justify-center items-center overflow-hidden min-w-0 gap-1 sm:gap-2"
+		>
+			<!-- Top Player Name -->
+			<div class="w-full max-w-[calc(100vw-1rem)] sm:max-w-[min(100%,calc(100vh-8rem))]">
+				<div
+					class="bg-[#262421] border border-neutral-800 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between"
+				>
+					<span class="font-bold text-xs sm:text-base truncate">
+						{orientation === 'white' ? blackName : whiteName}
+					</span>
+				</div>
+			</div>
+
+			<!-- Chess Board -->
+			<div class="w-full max-w-[calc(100vw-0.5rem)] sm:max-w-[min(100%,calc(100vh-8rem))]">
 				<ChessBoard
 					fen={sandboxActive ? sandboxFen : fens[currentIndex]}
 					{orientation}
 					on:engine={handleEngineUpdate}
 					on:move={handleMove}
 				/>
+			</div>
+
+			<!-- Bottom Player Name -->
+			<div class="w-full max-w-[calc(100vw-1rem)] sm:max-w-[min(100%,calc(100vh-8rem))]">
+				<div
+					class="bg-[#262421] border border-neutral-800 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between"
+				>
+					<span class="font-bold text-xs sm:text-base truncate">
+						{orientation === 'white' ? whiteName : blackName}
+					</span>
+				</div>
 			</div>
 		</div>
 
@@ -447,7 +479,7 @@
 					<!-- Secondary Layer: Utility -->
 					<div class="flex gap-2">
 						<Button
-							variant={showArrows ? 'primary' : 'outline'}
+							variant={showArrows ? 'default' : 'outline'}
 							size="sm"
 							onclick={toggleArrows}
 							class="flex-1 h-9 text-[10px] font-black uppercase tracking-tight border-neutral-800"
@@ -480,31 +512,75 @@
 		</aside>
 	</div>
 
-	<!-- Mobile Floating Overlay -->
 	<div
-		class="lg:hidden h-16 shrink-0 bg-[#262421] border-t border-neutral-800 flex items-center justify-around px-2"
+		class="lg:hidden h-20 shrink-0 bg-[#262421] border-t border-neutral-800 flex flex-col items-center justify-center px-4 gap-2"
 	>
-		<Button
-			variant="ghost"
-			size="icon"
-			onclick={prevMove}
-			disabled={currentIndex === 0 || sandboxActive}
-			class="text-neutral-400"
-		>
-			<ChevronLeft class="h-6 w-6" />
-		</Button>
-		<div class="px-3 py-1 bg-white/10 rounded font-black text-xs">
-			{Math.floor(currentIndex / 2)}
+		<div class="flex items-center justify-between w-full max-w-sm">
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={firstMove}
+				disabled={currentIndex === 0 || sandboxActive}
+				class="text-neutral-500 hover:text-white"
+			>
+				<ChevronsLeft class="h-5 w-5" />
+			</Button>
+
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={prevMove}
+				disabled={currentIndex === 0 || sandboxActive}
+				class="text-neutral-400"
+			>
+				<ChevronLeft class="h-6 w-6" />
+			</Button>
+
+			<div class="flex flex-col items-center min-w-[100px]">
+				<div
+					class="px-3 py-0.5 bg-white/10 rounded font-black text-[10px] text-neutral-400 uppercase tracking-tighter mb-1"
+				>
+					Move {currentIndex}
+				</div>
+				{#if !sandboxActive && moveRatings[currentIndex]}
+					{@const rating = moveRatings[currentIndex]}
+					{@const cfg = getRatingIcon(rating)}
+					{#if cfg}
+						<div class="flex items-center gap-1.5 animate-in zoom-in-50 duration-300">
+							<cfg.icon class="h-4 w-4 {cfg.color} drop-shadow-[0_0_5px_currentColor]" />
+							<span class="text-xs font-black uppercase {cfg.color} tracking-tight">{rating}</span>
+						</div>
+					{/if}
+				{:else if sandboxActive}
+					<div class="flex items-center gap-1.5 text-orange-400">
+						<Ghost class="h-4 w-4" />
+						<span class="text-xs font-black uppercase tracking-tight">Sandbox</span>
+					</div>
+				{:else}
+					<div class="h-4"></div>
+				{/if}
+			</div>
+
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={nextMove}
+				disabled={currentIndex === fens.length - 1 || sandboxActive}
+				class="text-neutral-400"
+			>
+				<ChevronRight class="h-6 w-6" />
+			</Button>
+
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={lastMove}
+				disabled={currentIndex === fens.length - 1 || sandboxActive}
+				class="text-neutral-500 hover:text-white"
+			>
+				<ChevronsRight class="h-5 w-5" />
+			</Button>
 		</div>
-		<Button
-			variant="ghost"
-			size="icon"
-			onclick={nextMove}
-			disabled={currentIndex === fens.length - 1 || sandboxActive}
-			class="text-neutral-400"
-		>
-			<ChevronRight class="h-6 w-6" />
-		</Button>
 	</div>
 </div>
 
